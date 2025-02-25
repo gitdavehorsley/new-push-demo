@@ -5,8 +5,8 @@ import { defineFunction } from '@aws-amplify/backend';
 export const sendSmsFunction = defineFunction({
   entry: '../../lambda/send-sms/index.js',
   environment: {
-    // This will be set manually after creating the Pinpoint project
-    PINPOINT_PROJECT_ID: 'REPLACE_WITH_PINPOINT_PROJECT_ID'
+    // Pinpoint project ID provided by the user
+    PINPOINT_PROJECT_ID: '2610e382c60e4cf4bc148b61221f3116'
   }
 });
 
