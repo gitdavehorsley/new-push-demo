@@ -203,7 +203,7 @@ Resources:
       ParentId: !GetAtt SendSmsApi.RootResourceId
       PathPart: 'send-sms'
 
-  # API Gateway Method
+  # API Gateway Method - POST
   SendSmsMethod:
     Type: AWS::ApiGateway::Method
     Properties:
@@ -219,12 +219,49 @@ Resources:
           - StatusCode: 200
             ResponseTemplates:
               application/json: ''
+            ResponseParameters:
+              method.response.header.Access-Control-Allow-Origin: "'*'"
+              method.response.header.Access-Control-Allow-Methods: "'OPTIONS,POST'"
+              method.response.header.Access-Control-Allow-Headers: "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token'"
         RequestTemplates:
           application/json: $input.json('$')
       MethodResponses:
         - StatusCode: 200
           ResponseModels:
             application/json: 'Empty'
+          ResponseParameters:
+            method.response.header.Access-Control-Allow-Origin: true
+            method.response.header.Access-Control-Allow-Methods: true
+            method.response.header.Access-Control-Allow-Headers: true
+
+  # API Gateway Method - OPTIONS (for CORS)
+  SendSmsOptionsMethod:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      RestApiId: !Ref SendSmsApi
+      ResourceId: !Ref SendSmsResource
+      HttpMethod: OPTIONS
+      AuthorizationType: NONE
+      Integration:
+        Type: MOCK
+        IntegrationResponses:
+          - StatusCode: 200
+            ResponseParameters:
+              method.response.header.Access-Control-Allow-Origin: "'*'"
+              method.response.header.Access-Control-Allow-Methods: "'OPTIONS,POST'"
+              method.response.header.Access-Control-Allow-Headers: "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token'"
+            ResponseTemplates:
+              application/json: ''
+        RequestTemplates:
+          application/json: '{"statusCode": 200}'
+      MethodResponses:
+        - StatusCode: 200
+          ResponseModels:
+            application/json: 'Empty'
+          ResponseParameters:
+            method.response.header.Access-Control-Allow-Origin: true
+            method.response.header.Access-Control-Allow-Methods: true
+            method.response.header.Access-Control-Allow-Headers: true
 
   # API Gateway Deployment
   ApiDeployment:
