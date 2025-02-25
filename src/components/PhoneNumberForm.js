@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { generateClient } from 'aws-amplify/api';
-import { Lambda } from 'aws-amplify/clients/lambda';
+import { Lambda } from 'aws-amplify';
 import { createPhoneNumber } from '../graphql/mutations.js';
 import '../styles/main.css';
 
