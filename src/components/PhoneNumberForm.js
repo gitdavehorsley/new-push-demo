@@ -1,9 +1,11 @@
 import React, { useState } from 'react';
 import { generateClient } from 'aws-amplify/api';
+import { Lambda } from 'aws-amplify/clients/lambda';
 import { createPhoneNumber } from '../graphql/mutations.js';
 import '../styles/main.css';
 
 const client = generateClient();
+const lambdaClient = new Lambda();
 
 const PhoneNumberForm = () => {
   const [phoneNumber, setPhoneNumber] = useState('');
@@ -26,7 +28,7 @@ const PhoneNumberForm = () => {
 
     try {
       // Create a new phone number entry in DynamoDB
-      await client.graphql({
+      const result = await client.graphql({
         query: createPhoneNumber,
         variables: {
           input: {
@@ -36,9 +38,32 @@ const PhoneNumberForm = () => {
         }
       });
 
-      // Clear form and show success message
-      setPhoneNumber('');
-      setMessage('Phone number submitted successfully!');
+      console.log('Phone number saved to database:', result);
+      
+      // Now invoke the Lambda function to send an SMS
+      try {
+        const lambdaResponse = await lambdaClient.invoke({
+          functionName: 'send-sms',
+          options: {
+            region: 'us-east-1' // Make sure this matches your project region
+          },
+          payload: {
+            phoneNumber: phoneNumber,
+            message: 'Thank you for subscribing to NewPushDemo notifications!'
+          }
+        });
+        
+        console.log('Lambda invocation response:', lambdaResponse);
+        
+        // Clear form and show success message
+        setPhoneNumber('');
+        setMessage('Phone number submitted successfully! You will receive a confirmation SMS shortly.');
+      } catch (lambdaErr) {
+        console.error('Error invoking Lambda function:', lambdaErr);
+        // Even if SMS sending fails, the phone number was saved
+        setPhoneNumber('');
+        setMessage('Phone number submitted successfully, but we could not send a confirmation SMS at this time.');
+      }
     } catch (err) {
       console.error('Error submitting phone number:', err);
       setError('Failed to submit phone number. Please try again.');
