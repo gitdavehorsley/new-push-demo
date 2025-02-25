@@ -1,6 +1,6 @@
 import React from 'react';
 import { configureAmplify } from './amplify-config.js';
-import PhoneNumberForm from './components/PhoneNumberForm';
+import PhoneNumberForm from './components/PhoneNumberForm.js';
 import './App.css';
 import './styles/main.css';
 
