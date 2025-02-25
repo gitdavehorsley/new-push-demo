@@ -4,13 +4,12 @@
     {
       "Effect": "Allow",
       "Action": [
-        "sns:Publish",
-        "sns:GetTopicAttributes",
-        "sns:SetTopicAttributes",
-        "sns:Subscribe",
-        "sns:Unsubscribe"
+        "mobiletargeting:SendMessages",
+        "mobiletargeting:GetSmsChannel",
+        "mobiletargeting:UpdateSmsChannel",
+        "mobiletargeting:PhoneNumberValidate"
       ],
-      "Resource": "arn:aws:sns:us-east-1:829591350088:NewPushDemo-SMS"
+      "Resource": "arn:aws:mobiletargeting:*:*:apps/*"
     }
   ]
 }

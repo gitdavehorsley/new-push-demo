@@ -4,16 +4,17 @@ import logging
 import re
 import random
 import string
+import os
 
 # Set up logging
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
 
-# Initialize SNS client
-sns = boto3.client('sns')
+# Initialize Pinpoint client
+pinpoint = boto3.client('pinpoint')
 
-# SNS Topic ARN for sending SMS messages
-SNS_TOPIC_ARN = 'arn:aws:sns:us-east-1:829591350088:NewPushDemo-SMS'
+# Pinpoint Project ID - will be set as environment variable
+PINPOINT_PROJECT_ID = os.environ.get('PINPOINT_PROJECT_ID')
 
 def generate_otp():
     """Generate a 4-digit OTP code"""
@@ -67,31 +68,35 @@ def lambda_handler(event, context):
         # Format phone number if needed (ensure it has country code)
         formatted_phone_number = format_phone_number(phone_number)
         
-        # Prepare parameters for SNS publish
+        # Prepare parameters for Pinpoint send_messages
         params = {
-            'Message': message,
-            'PhoneNumber': formatted_phone_number,
-            'MessageAttributes': {
-                'AWS.SNS.SMS.SenderID': {
-                    'DataType': 'String',
-                    'StringValue': 'NewPushDemo'
+            'ApplicationId': PINPOINT_PROJECT_ID,
+            'MessageRequest': {
+                'Addresses': {
+                    formatted_phone_number: {
+                        'ChannelType': 'SMS'
+                    }
                 },
-                'AWS.SNS.SMS.SMSType': {
-                    'DataType': 'String',
-                    'StringValue': 'Transactional'
+                'MessageConfiguration': {
+                    'SMSMessage': {
+                        'Body': message,
+                        'MessageType': 'TRANSACTIONAL',
+                        'OriginationNumber': os.environ.get('ORIGINATION_NUMBER', None),
+                        'SenderId': 'NewPushDemo'
+                    }
                 }
             }
         }
         
-        # Send the SMS
-        response = sns.publish(**params)
+        # Send the SMS using Pinpoint
+        response = pinpoint.send_messages(**params)
         logger.info(f"SMS sent successfully: {response}")
         
         return {
             'statusCode': 200,
             'body': json.dumps({
                 'message': 'SMS notification sent successfully',
-                'messageId': response.get('MessageId'),
+                'messageId': response['MessageResponse']['Result'][formatted_phone_number]['MessageId'],
                 **response_data
             })
         }
