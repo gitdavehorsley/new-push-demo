@@ -1,11 +1,11 @@
 import React, { useState } from 'react';
 import { generateClient } from 'aws-amplify/api';
-import { Lambda } from 'aws-amplify';
+import { Lambda } from '@aws-amplify/core';
 import { createPhoneNumber } from '../graphql/mutations.js';
 import '../styles/main.css';
 
 const client = generateClient();
-const lambdaClient = new Lambda();
+const lambda = new Lambda();
 
 const PhoneNumberForm = () => {
   const [phoneNumber, setPhoneNumber] = useState('');
@@ -42,11 +42,8 @@ const PhoneNumberForm = () => {
       
       // Now invoke the Lambda function to send an SMS
       try {
-        const lambdaResponse = await lambdaClient.invoke({
+        const lambdaResponse = await lambda.invoke({
           functionName: 'send-sms',
-          options: {
-            region: 'us-east-1' // Make sure this matches your project region
-          },
           payload: {
             phoneNumber: phoneNumber,
             message: 'Thank you for subscribing to NewPushDemo notifications!'
