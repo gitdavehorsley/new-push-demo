@@ -1,0 +1,16 @@
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Effect": "Allow",
+      "Action": [
+        "sns:Publish",
+        "sns:GetTopicAttributes",
+        "sns:SetTopicAttributes",
+        "sns:Subscribe",
+        "sns:Unsubscribe"
+      ],
+      "Resource": "arn:aws:sns:us-east-1:829591350088:NewPushDemo-SMS"
+    }
+  ]
+}
