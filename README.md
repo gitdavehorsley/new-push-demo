@@ -1,70 +1,105 @@
-# Getting Started with Create React App
+# NewPushDemo
 
-This project was bootstrapped with [Create React App](https://github.com/facebook/create-react-app).
+A React application that collects phone numbers for push notifications, built with AWS Amplify and DynamoDB.
 
-## Available Scripts
+## Overview
 
-In the project directory, you can run:
+This application provides a simple form for users to submit their phone numbers for push notifications. The phone numbers are stored in an AWS DynamoDB table through AWS Amplify.
 
-### `npm start`
+## Technologies Used
 
-Runs the app in the development mode.\
-Open [http://localhost:3000](http://localhost:3000) to view it in your browser.
+- React.js
+- AWS Amplify (Gen 2)
+- Amazon DynamoDB
+- AWS AppSync (GraphQL API)
 
-The page will reload when you make changes.\
-You may also see any lint errors in the console.
+## Project Structure
 
-### `npm test`
+```
+new-push-demo/
+├── src/
+│   ├── components/
+│   │   └── PhoneNumberForm.js
+│   ├── styles/
+│   │   └── main.css
+│   ├── graphql/
+│   │   └── mutations.js
+│   ├── amplify-config.js
+│   └── App.js
+├── amplify/
+│   ├── data/
+│   │   └── resource.ts
+│   └── backend.ts
+├── public/
+├── amplifyconfiguration.json
+├── package.json
+└── README.md
+```
 
-Launches the test runner in the interactive watch mode.\
-See the section about [running tests](https://facebook.github.io/create-react-app/docs/running-tests) for more information.
+## Setup Instructions
 
-### `npm run build`
+### Prerequisites
 
-Builds the app for production to the `build` folder.\
-It correctly bundles React in production mode and optimizes the build for the best performance.
+- Node.js and npm installed
+- AWS account
+- AWS CLI configured with appropriate credentials
 
-The build is minified and the filenames include the hashes.\
-Your app is ready to be deployed!
+### Local Development
 
-See the section about [deployment](https://facebook.github.io/create-react-app/docs/deployment) for more information.
+1. Clone the repository:
+   ```
+   git clone https://github.com/yourusername/new-push-demo.git
+   cd new-push-demo
+   ```
 
-### `npm run eject`
+2. Install dependencies:
+   ```
+   npm install
+   ```
 
-**Note: this is a one-way operation. Once you `eject`, you can't go back!**
+3. Install Amplify CLI:
+   ```
+   npm install -g @aws-amplify/cli
+   ```
 
-If you aren't satisfied with the build tool and configuration choices, you can `eject` at any time. This command will remove the single build dependency from your project.
+4. Initialize Amplify backend:
+   ```
+   npx amplify sandbox
+   ```
 
-Instead, it will copy all the configuration files and the transitive dependencies (webpack, Babel, ESLint, etc) right into your project so you have full control over them. All of the commands except `eject` will still work, but they will point to the copied scripts so you can tweak them. At this point you're on your own.
+5. Start the development server:
+   ```
+   npm start
+   ```
 
-You don't have to ever use `eject`. The curated feature set is suitable for small and middle deployments, and you shouldn't feel obligated to use this feature. However we understand that this tool wouldn't be useful if you couldn't customize it when you are ready for it.
+### Deployment to AWS Amplify
 
-## Learn More
+1. Push the local Amplify environment to AWS:
+   ```
+   npx amplify push
+   ```
 
-You can learn more in the [Create React App documentation](https://facebook.github.io/create-react-app/docs/getting-started).
+2. Deploy the frontend to AWS Amplify Hosting:
+   ```
+   npx amplify publish
+   ```
 
-To learn React, check out the [React documentation](https://reactjs.org/).
+## AWS Resources Created
 
-### Code Splitting
+- **DynamoDB Table**: Stores phone numbers submitted through the form
+- **AppSync API**: GraphQL API for interacting with the DynamoDB table
+- **Amplify Hosting**: Hosts the React application
 
-This section has moved here: [https://facebook.github.io/create-react-app/docs/code-splitting](https://facebook.github.io/create-react-app/docs/code-splitting)
+## Environment Variables
 
-### Analyzing the Bundle Size
+The application uses the following environment variables, which are stored in the `amplifyconfiguration.json` file:
 
-This section has moved here: [https://facebook.github.io/create-react-app/docs/analyzing-the-bundle-size](https://facebook.github.io/create-react-app/docs/analyzing-the-bundle-size)
+- `aws_project_region`: AWS region for the project
+- `aws_appsync_graphqlEndpoint`: GraphQL API endpoint
+- `aws_appsync_region`: AppSync region
+- `aws_appsync_authenticationType`: Authentication type for AppSync
+- `aws_appsync_apiKey`: API key for AppSync
 
-### Making a Progressive Web App
+## License
 
-This section has moved here: [https://facebook.github.io/create-react-app/docs/making-a-progressive-web-app](https://facebook.github.io/create-react-app/docs/making-a-progressive-web-app)
-
-### Advanced Configuration
-
-This section has moved here: [https://facebook.github.io/create-react-app/docs/advanced-configuration](https://facebook.github.io/create-react-app/docs/advanced-configuration)
-
-### Deployment
-
-This section has moved here: [https://facebook.github.io/create-react-app/docs/deployment](https://facebook.github.io/create-react-app/docs/deployment)
-
-### `npm run build` fails to minify
-
-This section has moved here: [https://facebook.github.io/create-react-app/docs/troubleshooting#npm-run-build-fails-to-minify](https://facebook.github.io/create-react-app/docs/troubleshooting#npm-run-build-fails-to-minify)
+This project is licensed under the MIT License - see the LICENSE file for details.
