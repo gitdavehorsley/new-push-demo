@@ -1,5 +1,5 @@
-import React, { useEffect } from 'react';
-import { configureAmplify } from './amplify-config';
+import React from 'react';
+import { configureAmplify } from './amplify-config.js';
 import PhoneNumberForm from './components/PhoneNumberForm';
 import './App.css';
 import './styles/main.css';

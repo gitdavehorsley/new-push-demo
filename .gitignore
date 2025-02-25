@@ -22,6 +22,8 @@ dist/
 node_modules/
 aws-exports.js
 awsconfiguration.json
+# Allow src/amplifyconfiguration.json to be committed
+/amplifyconfiguration.json
 amplifyconfiguration.json.bak
 amplifyconfiguration.dart
 amplify-build-config.json
