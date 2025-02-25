@@ -2,6 +2,8 @@ import boto3
 import json
 import logging
 import re
+import random
+import string
 
 # Set up logging
 logger = logging.getLogger()
@@ -13,6 +15,10 @@ sns = boto3.client('sns')
 # SNS Topic ARN for sending SMS messages
 SNS_TOPIC_ARN = 'arn:aws:sns:us-east-1:829591350088:NewPushDemo-SMS'
 
+def generate_otp():
+    """Generate a 4-digit OTP code"""
+    return ''.join(random.choices(string.digits, k=4))
+
 def lambda_handler(event, context):
     """
     Lambda function to send SMS notifications
@@ -22,6 +28,12 @@ def lambda_handler(event, context):
         "phoneNumber": "+1234567890",
         "message": "Your notification message here"
     }
+    
+    Or for OTP:
+    {
+        "phoneNumber": "+1234567890",
+        "action": "send_otp"
+    }
     """
     logger.info(f"Event received: {json.dumps(event)}")
     
@@ -29,13 +41,28 @@ def lambda_handler(event, context):
         # Extract phone number and message from the event
         phone_number = event.get('phoneNumber')
         message = event.get('message')
+        action = event.get('action')
         
         # Validate inputs
         if not phone_number:
             raise ValueError('Phone number is required')
         
-        if not message:
+        # Handle OTP generation if action is send_otp
+        if action == 'send_otp':
+            otp = generate_otp()
+            message = f"Your verification code is: {otp}"
+            logger.info(f"Generated OTP: {otp}")
+            
+            # Return the OTP in the response for verification
+            response_data = {
+                'otp': otp
+            }
+        elif not message:
+            # If not an OTP request and no message provided, raise error
             raise ValueError('Message is required')
+        else:
+            # Regular SMS with no special handling
+            response_data = {}
         
         # Format phone number if needed (ensure it has country code)
         formatted_phone_number = format_phone_number(phone_number)
@@ -64,7 +91,8 @@ def lambda_handler(event, context):
             'statusCode': 200,
             'body': json.dumps({
                 'message': 'SMS notification sent successfully',
-                'messageId': response.get('MessageId')
+                'messageId': response.get('MessageId'),
+                **response_data
             })
         }
     

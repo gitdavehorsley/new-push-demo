@@ -16,6 +16,7 @@ Resources:
           import logging
           import re
           import random
+          import string
 
           # Set up logging
           logger = logging.getLogger()
@@ -27,111 +28,95 @@ Resources:
           # SNS Topic ARN for sending SMS messages
           SNS_TOPIC_ARN = 'arn:aws:sns:us-east-1:829591350088:NewPushDemo-SMS'
 
+          def generate_otp():
+              """Generate a 4-digit OTP code"""
+              return ''.join(random.choices(string.digits, k=4))
+
           def lambda_handler(event, context):
               """
-              Lambda function to send SMS notifications with OTP
+              Lambda function to send SMS notifications
               
               Expected event format:
               {
                   "phoneNumber": "+1234567890",
-                  "action": "send_otp" | "verify_otp",
-                  "otp": "1234" (only required for verify_otp action)
+                  "message": "Your notification message here"
+              }
+              
+              Or for OTP:
+              {
+                  "phoneNumber": "+1234567890",
+                  "action": "send_otp"
               }
               """
               logger.info(f"Event received: {json.dumps(event)}")
               
               try:
-                  # Extract phone number and action from the event
+                  # Extract phone number and message from the event
                   phone_number = event.get('phoneNumber')
-                  action = event.get('action', 'send_otp')
+                  message = event.get('message')
+                  action = event.get('action')
                   
                   # Validate inputs
                   if not phone_number:
                       raise ValueError('Phone number is required')
                   
+                  # Handle OTP generation if action is send_otp
+                  if action == 'send_otp':
+                      otp = generate_otp()
+                      message = f"Your verification code is: {otp}"
+                      logger.info(f"Generated OTP: {otp}")
+                      
+                      # Return the OTP in the response for verification
+                      response_data = {
+                          'otp': otp
+                      }
+                  elif not message:
+                      # If not an OTP request and no message provided, raise error
+                      raise ValueError('Message is required')
+                  else:
+                      # Regular SMS with no special handling
+                      response_data = {}
+                  
                   # Format phone number if needed (ensure it has country code)
                   formatted_phone_number = format_phone_number(phone_number)
                   
-                  # Handle different actions
-                  if action == 'send_otp':
-                      return send_otp(formatted_phone_number)
-                  elif action == 'verify_otp':
-                      otp = event.get('otp')
-                      stored_otp = event.get('stored_otp')
-                      if not otp:
-                          raise ValueError('OTP is required for verification')
-                      return verify_otp(otp, stored_otp)
-                  else:
-                      raise ValueError(f'Invalid action: {action}')
+                  # Prepare parameters for SNS publish
+                  params = {
+                      'Message': message,
+                      'PhoneNumber': formatted_phone_number,
+                      'MessageAttributes': {
+                          'AWS.SNS.SMS.SenderID': {
+                              'DataType': 'String',
+                              'StringValue': 'NewPushDemo'
+                          },
+                          'AWS.SNS.SMS.SMSType': {
+                              'DataType': 'String',
+                              'StringValue': 'Transactional'
+                          }
+                      }
+                  }
+                  
+                  # Send the SMS
+                  response = sns.publish(**params)
+                  logger.info(f"SMS sent successfully: {response}")
+                  
+                  return {
+                      'statusCode': 200,
+                      'body': json.dumps({
+                          'message': 'SMS notification sent successfully',
+                          'messageId': response.get('MessageId'),
+                          **response_data
+                      })
+                  }
               
               except Exception as e:
-                  logger.error(f"Error in Lambda function: {str(e)}")
+                  logger.error(f"Error sending SMS: {str(e)}")
                   
                   return {
                       'statusCode': 500,
                       'body': json.dumps({
-                          'message': 'Operation failed',
+                          'message': 'Failed to send SMS notification',
                           'error': str(e)
-                      })
-                  }
-                  
-          def send_otp(phone_number):
-              """
-              Generate a 4-digit OTP and send it via SMS
-              """
-              # Generate a random 4-digit OTP
-              otp = ''.join([str(random.randint(0, 9)) for _ in range(4)])
-              
-              # Create the SMS message
-              message = f"Your verification code is: {otp}. This code will expire in 10 minutes."
-              
-              # Prepare parameters for SNS publish
-              params = {
-                  'Message': message,
-                  'PhoneNumber': phone_number,
-                  'MessageAttributes': {
-                      'AWS.SNS.SMS.SenderID': {
-                          'DataType': 'String',
-                          'StringValue': 'NewPushDemo'
-                      },
-                      'AWS.SNS.SMS.SMSType': {
-                          'DataType': 'String',
-                          'StringValue': 'Transactional'
-                      }
-                  }
-              }
-              
-              # Send the SMS
-              response = sns.publish(**params)
-              logger.info(f"OTP SMS sent successfully: {response}")
-              
-              return {
-                  'statusCode': 200,
-                  'body': json.dumps({
-                      'message': 'OTP sent successfully',
-                      'messageId': response.get('MessageId'),
-                      'otp': otp  # Return OTP to frontend for verification
-                  })
-              }
-              
-          def verify_otp(provided_otp, stored_otp):
-              """
-              Verify the OTP provided by the user
-              """
-              if provided_otp == stored_otp:
-                  return {
-                      'statusCode': 200,
-                      'body': json.dumps({
-                          'message': 'OTP verified successfully',
-                          'verified': True
-                      })
-                  }
-              else:
-                  return {
-                      'statusCode': 400,
-                      'body': json.dumps({
-                          'message': 'Invalid OTP',
-                          'verified': False
                       })
                   }
 
