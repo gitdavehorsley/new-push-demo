@@ -69,6 +69,7 @@ button {
   font-size: 1rem;
   cursor: pointer;
   transition: background-color 0.3s;
+  margin-bottom: 0.75rem;
 }
 
 button:hover {
@@ -78,6 +79,15 @@ button:hover {
 button:disabled {
   background-color: var(--secondary-color);
   cursor: not-allowed;
+}
+
+button.secondary-button {
+  background-color: var(--secondary-color);
+  color: white;
+}
+
+button.secondary-button:hover {
+  background-color: #5a6268;
 }
 
 .success-message {
