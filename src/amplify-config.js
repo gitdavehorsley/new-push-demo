@@ -1,4 +1,4 @@
-import Amplify from 'aws-amplify';
+import { Amplify } from 'aws-amplify';
 import config from './amplifyconfiguration.json';
 
 // Configure Amplify
