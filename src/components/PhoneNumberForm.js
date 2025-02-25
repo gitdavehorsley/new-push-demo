@@ -39,16 +39,24 @@ const PhoneNumberForm = () => {
 
       console.log('Phone number saved to database:', result);
       
-      // Now invoke the Lambda function to send an SMS
+      // Now invoke the Lambda function via API Gateway to send an SMS
       try {
-        // For now, we'll just log the phone number and skip the Lambda invocation
-        // until we figure out the correct way to invoke Lambda in AWS Amplify v6
-        console.log('Would send SMS to:', phoneNumber);
+        // Call the API Gateway endpoint to send SMS
+        console.log('Sending SMS to:', phoneNumber);
         
-        // Simulate a successful Lambda invocation
-        const lambdaResponse = { success: true };
+        const response = await fetch('https://qbxe9azea3.execute-api.us-east-1.amazonaws.com/prod/send-sms', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            phoneNumber: phoneNumber,
+            message: 'Thank you for subscribing to push notifications!'
+          })
+        });
         
-        console.log('Lambda invocation response:', lambdaResponse);
+        const lambdaResponse = await response.json();
+        console.log('API Gateway response:', lambdaResponse);
         
         // Clear form and show success message
         setPhoneNumber('');

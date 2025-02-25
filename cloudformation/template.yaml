@@ -1,0 +1,211 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: 'CloudFormation template for SMS API with Lambda and API Gateway'
+
+Resources:
+  # Lambda Function
+  SendSmsFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: SendSmsFunction
+      Handler: lambda_function.lambda_handler
+      Role: !GetAtt SendSmsFunctionRole.Arn
+      Code:
+        ZipFile: |
+          import boto3
+          import json
+          import logging
+          import re
+
+          # Set up logging
+          logger = logging.getLogger()
+          logger.setLevel(logging.INFO)
+
+          # Initialize SNS client
+          sns = boto3.client('sns')
+
+          # SNS Topic ARN for sending SMS messages
+          SNS_TOPIC_ARN = 'arn:aws:sns:us-east-1:829591350088:NewPushDemo-SMS'
+
+          def lambda_handler(event, context):
+              """
+              Lambda function to send SMS notifications
+              
+              Expected event format:
+              {
+                  "phoneNumber": "+1234567890",
+                  "message": "Your notification message here"
+              }
+              """
+              logger.info(f"Event received: {json.dumps(event)}")
+              
+              try:
+                  # Extract phone number and message from the event
+                  phone_number = event.get('phoneNumber')
+                  message = event.get('message')
+                  
+                  # Validate inputs
+                  if not phone_number:
+                      raise ValueError('Phone number is required')
+                  
+                  if not message:
+                      raise ValueError('Message is required')
+                  
+                  # Format phone number if needed (ensure it has country code)
+                  formatted_phone_number = format_phone_number(phone_number)
+                  
+                  # Prepare parameters for SNS publish
+                  params = {
+                      'Message': message,
+                      'PhoneNumber': formatted_phone_number,
+                      'MessageAttributes': {
+                          'AWS.SNS.SMS.SenderID': {
+                              'DataType': 'String',
+                              'StringValue': 'NewPushDemo'
+                          },
+                          'AWS.SNS.SMS.SMSType': {
+                              'DataType': 'String',
+                              'StringValue': 'Transactional'
+                          }
+                      }
+                  }
+                  
+                  # Send the SMS
+                  response = sns.publish(**params)
+                  logger.info(f"SMS sent successfully: {response}")
+                  
+                  return {
+                      'statusCode': 200,
+                      'body': json.dumps({
+                          'message': 'SMS notification sent successfully',
+                          'messageId': response.get('MessageId')
+                      })
+                  }
+              
+              except Exception as e:
+                  logger.error(f"Error sending SMS: {str(e)}")
+                  
+                  return {
+                      'statusCode': 500,
+                      'body': json.dumps({
+                          'message': 'Failed to send SMS notification',
+                          'error': str(e)
+                      })
+                  }
+
+          def format_phone_number(phone_number):
+              """
+              Helper function to format phone numbers
+              Ensures the phone number has the country code
+              """
+              # Remove any non-digit characters
+              cleaned = re.sub(r'\D', '', phone_number)
+              
+              # If the number doesn't start with a country code (e.g., +1 for US),
+              # add the default country code (assuming US)
+              if not phone_number.startswith('+'):
+                  # If the number is 10 digits (US format without country code)
+                  if len(cleaned) == 10:
+                      return '+1' + cleaned
+                  # If it's 11 digits and starts with 1 (US format with country code but missing +)
+                  elif len(cleaned) == 11 and cleaned.startswith('1'):
+                      return '+' + cleaned
+                  # Otherwise, just add + at the beginning
+                  else:
+                      return '+' + cleaned
+              
+              return phone_number
+      Runtime: python3.9
+      Timeout: 30
+      Environment:
+        Variables:
+          SNS_TOPIC_ARN: 'arn:aws:sns:us-east-1:829591350088:NewPushDemo-SMS'
+
+  # IAM Role for Lambda
+  SendSmsFunctionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+      Policies:
+        - PolicyName: SNSPublishPolicy
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action: sns:Publish
+                Resource: '*'
+
+  # API Gateway REST API
+  SendSmsApi:
+    Type: AWS::ApiGateway::RestApi
+    Properties:
+      Name: SendSmsApi
+      Description: API for sending SMS messages
+      EndpointConfiguration:
+        Types:
+          - REGIONAL
+
+  # API Gateway Resource
+  SendSmsResource:
+    Type: AWS::ApiGateway::Resource
+    Properties:
+      RestApiId: !Ref SendSmsApi
+      ParentId: !GetAtt SendSmsApi.RootResourceId
+      PathPart: 'send-sms'
+
+  # API Gateway Method
+  SendSmsMethod:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      RestApiId: !Ref SendSmsApi
+      ResourceId: !Ref SendSmsResource
+      HttpMethod: POST
+      AuthorizationType: NONE
+      Integration:
+        Type: AWS
+        IntegrationHttpMethod: POST
+        Uri: !Sub arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${SendSmsFunction.Arn}/invocations
+        IntegrationResponses:
+          - StatusCode: 200
+            ResponseTemplates:
+              application/json: ''
+        RequestTemplates:
+          application/json: $input.json('$')
+      MethodResponses:
+        - StatusCode: 200
+          ResponseModels:
+            application/json: 'Empty'
+
+  # API Gateway Deployment
+  ApiDeployment:
+    Type: AWS::ApiGateway::Deployment
+    DependsOn:
+      - SendSmsMethod
+    Properties:
+      RestApiId: !Ref SendSmsApi
+      StageName: prod
+
+  # Lambda Permission for API Gateway
+  LambdaPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      Action: lambda:InvokeFunction
+      FunctionName: !Ref SendSmsFunction
+      Principal: apigateway.amazonaws.com
+      SourceArn: !Sub arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${SendSmsApi}/*/POST/send-sms
+
+Outputs:
+  ApiEndpoint:
+    Description: API Gateway endpoint URL for prod stage
+    Value: !Sub https://${SendSmsApi}.execute-api.${AWS::Region}.amazonaws.com/prod/send-sms
+  
+  LambdaFunctionName:
+    Description: Name of the Lambda function
+    Value: !Ref SendSmsFunction
