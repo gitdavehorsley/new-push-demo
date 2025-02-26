@@ -5,8 +5,8 @@ import { createPhoneNumber } from '../graphql/mutations.js';
 import '../styles/main.css';
 
 // API endpoints for OTP verification
-const SEND_OTP_ENDPOINT = 'https://API_GATEWAY_ID.execute-api.us-east-1.amazonaws.com/prod/send-otp';
-const VERIFY_OTP_ENDPOINT = 'https://API_GATEWAY_ID.execute-api.us-east-1.amazonaws.com/prod/verify-otp';
+const SEND_OTP_ENDPOINT = 'https://sldlnrigz9.execute-api.us-east-1.amazonaws.com/prod/send-otp';
+const VERIFY_OTP_ENDPOINT = 'https://sldlnrigz9.execute-api.us-east-1.amazonaws.com/prod/verify-otp';
 
 const client = generateClient();
 
