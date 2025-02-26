@@ -1,0 +1,299 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: 'CloudFormation template for OTP verification API with Lambda and API Gateway'
+
+Parameters:
+  OtpTableName:
+    Type: String
+    Default: OtpVerification
+    Description: 'Name of the DynamoDB table for OTP storage'
+  
+  SnsTopicArn:
+    Type: String
+    Description: 'ARN of the SNS topic for SMS delivery'
+  
+  OtpExpiryMinutes:
+    Type: Number
+    Default: 5
+    Description: 'Number of minutes before an OTP expires'
+  
+  MaxOtpAttempts:
+    Type: Number
+    Default: 3
+    Description: 'Maximum number of attempts to verify an OTP'
+  
+  RateLimitHours:
+    Type: Number
+    Default: 1
+    Description: 'Number of hours for rate limiting'
+  
+  MaxOtpRequests:
+    Type: Number
+    Default: 3
+    Description: 'Maximum number of OTP requests per rate limit period'
+
+Resources:
+  # Lambda Function
+  OtpVerificationFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: OtpVerificationFunction
+      Handler: index.handler
+      Role: !GetAtt OtpVerificationFunctionRole.Arn
+      Code:
+        S3Bucket: !Ref 'AWS::NoValue'
+        S3Key: !Ref 'AWS::NoValue'
+        ZipFile: |
+          // This is a placeholder. The actual code will be deployed separately.
+          exports.handler = async (event) => {
+            return {
+              statusCode: 200,
+              body: JSON.stringify({ message: 'OTP verification function placeholder' })
+            };
+          };
+      Runtime: nodejs18.x
+      Timeout: 30
+      Environment:
+        Variables:
+          SNS_TOPIC_ARN: !Ref SnsTopicArn
+          OTP_TABLE_NAME: !Ref OtpTableName
+          OTP_EXPIRY_MINUTES: !Ref OtpExpiryMinutes
+          MAX_OTP_ATTEMPTS: !Ref MaxOtpAttempts
+          RATE_LIMIT_HOURS: !Ref RateLimitHours
+          MAX_OTP_REQUESTS: !Ref MaxOtpRequests
+
+  # IAM Role for Lambda
+  OtpVerificationFunctionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+      Policies:
+        - PolicyName: DynamoDBAccess
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - dynamodb:PutItem
+                  - dynamodb:GetItem
+                  - dynamodb:UpdateItem
+                  - dynamodb:DeleteItem
+                  - dynamodb:Query
+                Resource: !Sub 'arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/${OtpTableName}'
+        - PolicyName: SNSPublish
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - sns:Publish
+                  - sns:SetSMSAttributes
+                  - sns:GetSMSAttributes
+                Resource: '*'
+
+  # API Gateway REST API
+  OtpApi:
+    Type: AWS::ApiGateway::RestApi
+    Properties:
+      Name: OtpVerificationApi
+      Description: API for OTP verification
+      EndpointConfiguration:
+        Types:
+          - REGIONAL
+
+  # API Gateway Resource for sending OTP
+  SendOtpResource:
+    Type: AWS::ApiGateway::Resource
+    Properties:
+      RestApiId: !Ref OtpApi
+      ParentId: !GetAtt OtpApi.RootResourceId
+      PathPart: 'send-otp'
+
+  # API Gateway Method for sending OTP - POST
+  SendOtpMethod:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      RestApiId: !Ref OtpApi
+      ResourceId: !Ref SendOtpResource
+      HttpMethod: POST
+      AuthorizationType: NONE
+      Integration:
+        Type: AWS
+        IntegrationHttpMethod: POST
+        Uri: !Sub arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${OtpVerificationFunction.Arn}/invocations
+        IntegrationResponses:
+          - StatusCode: 200
+            ResponseTemplates:
+              application/json: ''
+            ResponseParameters:
+              method.response.header.Access-Control-Allow-Origin: "'*'"
+              method.response.header.Access-Control-Allow-Methods: "'OPTIONS,POST'"
+              method.response.header.Access-Control-Allow-Headers: "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token'"
+        RequestTemplates:
+          application/json: |
+            {
+              "action": "send_otp",
+              "phoneNumber": $input.json('$.phoneNumber')
+            }
+      MethodResponses:
+        - StatusCode: 200
+          ResponseModels:
+            application/json: 'Empty'
+          ResponseParameters:
+            method.response.header.Access-Control-Allow-Origin: true
+            method.response.header.Access-Control-Allow-Methods: true
+            method.response.header.Access-Control-Allow-Headers: true
+
+  # API Gateway Method for sending OTP - OPTIONS (for CORS)
+  SendOtpOptionsMethod:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      RestApiId: !Ref OtpApi
+      ResourceId: !Ref SendOtpResource
+      HttpMethod: OPTIONS
+      AuthorizationType: NONE
+      Integration:
+        Type: MOCK
+        IntegrationResponses:
+          - StatusCode: 200
+            ResponseParameters:
+              method.response.header.Access-Control-Allow-Origin: "'*'"
+              method.response.header.Access-Control-Allow-Methods: "'OPTIONS,POST'"
+              method.response.header.Access-Control-Allow-Headers: "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token'"
+            ResponseTemplates:
+              application/json: ''
+        RequestTemplates:
+          application/json: '{"statusCode": 200}'
+      MethodResponses:
+        - StatusCode: 200
+          ResponseModels:
+            application/json: 'Empty'
+          ResponseParameters:
+            method.response.header.Access-Control-Allow-Origin: true
+            method.response.header.Access-Control-Allow-Methods: true
+            method.response.header.Access-Control-Allow-Headers: true
+
+  # API Gateway Resource for verifying OTP
+  VerifyOtpResource:
+    Type: AWS::ApiGateway::Resource
+    Properties:
+      RestApiId: !Ref OtpApi
+      ParentId: !GetAtt OtpApi.RootResourceId
+      PathPart: 'verify-otp'
+
+  # API Gateway Method for verifying OTP - POST
+  VerifyOtpMethod:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      RestApiId: !Ref OtpApi
+      ResourceId: !Ref VerifyOtpResource
+      HttpMethod: POST
+      AuthorizationType: NONE
+      Integration:
+        Type: AWS
+        IntegrationHttpMethod: POST
+        Uri: !Sub arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${OtpVerificationFunction.Arn}/invocations
+        IntegrationResponses:
+          - StatusCode: 200
+            ResponseTemplates:
+              application/json: ''
+            ResponseParameters:
+              method.response.header.Access-Control-Allow-Origin: "'*'"
+              method.response.header.Access-Control-Allow-Methods: "'OPTIONS,POST'"
+              method.response.header.Access-Control-Allow-Headers: "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token'"
+        RequestTemplates:
+          application/json: |
+            {
+              "action": "verify_otp",
+              "phoneNumber": $input.json('$.phoneNumber'),
+              "otp": $input.json('$.otp')
+            }
+      MethodResponses:
+        - StatusCode: 200
+          ResponseModels:
+            application/json: 'Empty'
+          ResponseParameters:
+            method.response.header.Access-Control-Allow-Origin: true
+            method.response.header.Access-Control-Allow-Methods: true
+            method.response.header.Access-Control-Allow-Headers: true
+
+  # API Gateway Method for verifying OTP - OPTIONS (for CORS)
+  VerifyOtpOptionsMethod:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      RestApiId: !Ref OtpApi
+      ResourceId: !Ref VerifyOtpResource
+      HttpMethod: OPTIONS
+      AuthorizationType: NONE
+      Integration:
+        Type: MOCK
+        IntegrationResponses:
+          - StatusCode: 200
+            ResponseParameters:
+              method.response.header.Access-Control-Allow-Origin: "'*'"
+              method.response.header.Access-Control-Allow-Methods: "'OPTIONS,POST'"
+              method.response.header.Access-Control-Allow-Headers: "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token'"
+            ResponseTemplates:
+              application/json: ''
+        RequestTemplates:
+          application/json: '{"statusCode": 200}'
+      MethodResponses:
+        - StatusCode: 200
+          ResponseModels:
+            application/json: 'Empty'
+          ResponseParameters:
+            method.response.header.Access-Control-Allow-Origin: true
+            method.response.header.Access-Control-Allow-Methods: true
+            method.response.header.Access-Control-Allow-Headers: true
+
+  # API Gateway Deployment
+  ApiDeployment:
+    Type: AWS::ApiGateway::Deployment
+    DependsOn:
+      - SendOtpMethod
+      - VerifyOtpMethod
+    Properties:
+      RestApiId: !Ref OtpApi
+      StageName: prod
+
+  # Lambda Permission for API Gateway - Send OTP
+  SendOtpLambdaPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      Action: lambda:InvokeFunction
+      FunctionName: !Ref OtpVerificationFunction
+      Principal: apigateway.amazonaws.com
+      SourceArn: !Sub arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${OtpApi}/*/POST/send-otp
+
+  # Lambda Permission for API Gateway - Verify OTP
+  VerifyOtpLambdaPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      Action: lambda:InvokeFunction
+      FunctionName: !Ref OtpVerificationFunction
+      Principal: apigateway.amazonaws.com
+      SourceArn: !Sub arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${OtpApi}/*/POST/verify-otp
+
+Outputs:
+  ApiEndpoint:
+    Description: API Gateway endpoint URL for prod stage
+    Value: !Sub https://${OtpApi}.execute-api.${AWS::Region}.amazonaws.com/prod/
+  
+  SendOtpEndpoint:
+    Description: Endpoint URL for sending OTP
+    Value: !Sub https://${OtpApi}.execute-api.${AWS::Region}.amazonaws.com/prod/send-otp
+  
+  VerifyOtpEndpoint:
+    Description: Endpoint URL for verifying OTP
+    Value: !Sub https://${OtpApi}.execute-api.${AWS::Region}.amazonaws.com/prod/verify-otp
+  
+  LambdaFunctionName:
+    Description: Name of the Lambda function
+    Value: !Ref OtpVerificationFunction

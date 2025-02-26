@@ -4,16 +4,21 @@ import { Amplify } from 'aws-amplify';
 import { createPhoneNumber } from '../graphql/mutations.js';
 import '../styles/main.css';
 
+// API endpoints for OTP verification
+const SEND_OTP_ENDPOINT = 'https://API_GATEWAY_ID.execute-api.us-east-1.amazonaws.com/prod/send-otp';
+const VERIFY_OTP_ENDPOINT = 'https://API_GATEWAY_ID.execute-api.us-east-1.amazonaws.com/prod/verify-otp';
+
 const client = generateClient();
 
 const PhoneNumberForm = () => {
   const [phoneNumber, setPhoneNumber] = useState('');
   const [otp, setOtp] = useState('');
-  const [storedOtp, setStoredOtp] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [message, setMessage] = useState('');
   const [error, setError] = useState('');
   const [step, setStep] = useState('phone'); // 'phone' or 'otp'
+  const [remainingAttempts, setRemainingAttempts] = useState(3);
+  const [expiresIn, setExpiresIn] = useState('5 minutes');
 
   const handleSendOtp = async (e) => {
     e.preventDefault();
@@ -32,27 +37,40 @@ const PhoneNumberForm = () => {
       // Call the API Gateway endpoint to send OTP
       console.log('Sending OTP to:', phoneNumber);
       
-      const response = await fetch('https://qbxe9azea3.execute-api.us-east-1.amazonaws.com/prod/send-sms', {
+      const response = await fetch(SEND_OTP_ENDPOINT, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          phoneNumber: phoneNumber,
-          action: 'send_otp'
+          phoneNumber: phoneNumber
         })
       });
       
-      const lambdaResponse = await response.json();
-      console.log('API Gateway response:', lambdaResponse);
+      const responseData = await response.json();
+      console.log('API Gateway response:', responseData);
       
-      // Store the OTP for verification
-      const responseBody = JSON.parse(lambdaResponse.body);
-      setStoredOtp(responseBody.otp);
+      if (response.status === 429) {
+        // Rate limited
+        setError(`Too many verification attempts. ${responseData.message}`);
+        return;
+      }
+      
+      if (response.status !== 200) {
+        throw new Error(responseData.message || 'Failed to send verification code');
+      }
+      
+      // Parse the response body
+      const responseBody = JSON.parse(responseData.body);
+      
+      // Set expiration time from response
+      if (responseBody.expiresIn) {
+        setExpiresIn(responseBody.expiresIn);
+      }
       
       // Move to OTP verification step
       setStep('otp');
-      setMessage('Verification code sent! Please check your phone and enter the 4-digit code below.');
+      setMessage(`Verification code sent! Please check your phone and enter the code below. It will expire in ${expiresIn}.`);
     } catch (err) {
       console.error('Error sending OTP:', err);
       setError('Failed to send verification code. Please try again.');
@@ -74,8 +92,34 @@ const PhoneNumberForm = () => {
     setError('');
 
     try {
-      // Verify OTP
-      if (otp === storedOtp) {
+      // Call the API Gateway endpoint to verify OTP
+      const response = await fetch(VERIFY_OTP_ENDPOINT, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          phoneNumber: phoneNumber,
+          otp: otp
+        })
+      });
+      
+      const responseData = await response.json();
+      console.log('Verification response:', responseData);
+      
+      // Parse the response body
+      const responseBody = JSON.parse(responseData.body);
+      
+      if (response.status !== 200) {
+        // Update remaining attempts if provided
+        if (responseBody.remainingAttempts !== undefined) {
+          setRemainingAttempts(responseBody.remainingAttempts);
+        }
+        
+        throw new Error(responseBody.message || 'Failed to verify code');
+      }
+      
+      if (responseBody.verified) {
         // OTP is valid, save phone number to database
         const result = await client.graphql({
           query: createPhoneNumber,
@@ -92,7 +136,6 @@ const PhoneNumberForm = () => {
         // Clear form and show success message
         setPhoneNumber('');
         setOtp('');
-        setStoredOtp('');
         setStep('phone');
         setMessage('Phone number verified and submitted successfully!');
       } else {
@@ -101,7 +144,7 @@ const PhoneNumberForm = () => {
       }
     } catch (err) {
       console.error('Error verifying OTP or submitting phone number:', err);
-      setError('Failed to verify and submit phone number. Please try again.');
+      setError(`${err.message}. ${remainingAttempts > 0 ? `Remaining attempts: ${remainingAttempts}` : 'Please request a new code.'}`);
     } finally {
       setIsSubmitting(false);
     }
@@ -120,9 +163,10 @@ const PhoneNumberForm = () => {
               id="phoneNumber"
               value={phoneNumber}
               onChange={(e) => setPhoneNumber(e.target.value)}
-              placeholder="Enter your phone number"
+              placeholder="+1 (123) 456-7890"
               disabled={isSubmitting}
             />
+            <small>US phone numbers only (+1)</small>
           </div>
           <button type="submit" disabled={isSubmitting}>
             {isSubmitting ? 'Sending...' : 'Send Verification Code'}
@@ -132,14 +176,15 @@ const PhoneNumberForm = () => {
         <form onSubmit={handleVerifyOtp}>
           <div className="form-group">
             <p>A verification code has been sent to {phoneNumber}</p>
+            <p className="expires-text">Code expires in {expiresIn}</p>
             <label htmlFor="otp">Verification Code:</label>
             <input
               type="text"
               id="otp"
               value={otp}
               onChange={(e) => setOtp(e.target.value)}
-              placeholder="Enter 4-digit code"
-              maxLength={4}
+              placeholder="Enter 6-digit code"
+              maxLength={6}
               disabled={isSubmitting}
             />
           </div>
@@ -153,6 +198,14 @@ const PhoneNumberForm = () => {
             className="secondary-button"
           >
             Back
+          </button>
+          <button
+            type="button"
+            onClick={handleSendOtp}
+            disabled={isSubmitting}
+            className="secondary-button"
+          >
+            Resend Code
           </button>
         </form>
       )}

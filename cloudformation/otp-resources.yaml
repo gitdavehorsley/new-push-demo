@@ -1,0 +1,85 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: 'CloudFormation template for OTP verification resources'
+
+Resources:
+  # DynamoDB Table for OTP Storage
+  OtpTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: OtpVerification
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: phoneNumber
+          AttributeType: S
+        - AttributeName: createdAt
+          AttributeType: S
+      KeySchema:
+        - AttributeName: phoneNumber
+          KeyType: HASH
+        - AttributeName: createdAt
+          KeyType: RANGE
+      TimeToLiveSpecification:
+        AttributeName: expiresAt
+        Enabled: true
+      Tags:
+        - Key: Project
+          Value: NewPushDemo
+
+  # SNS Topic for SMS Delivery
+  SmsTopic:
+    Type: AWS::SNS::Topic
+    Properties:
+      DisplayName: NewPushDemo
+      Tags:
+        - Key: Project
+          Value: NewPushDemo
+
+  # IAM Role for Lambda to access DynamoDB and SNS
+  OtpLambdaRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+      Policies:
+        - PolicyName: DynamoDBAccess
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - dynamodb:PutItem
+                  - dynamodb:GetItem
+                  - dynamodb:UpdateItem
+                  - dynamodb:DeleteItem
+                  - dynamodb:Query
+                Resource: !GetAtt OtpTable.Arn
+        - PolicyName: SNSPublish
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - sns:Publish
+                  - sns:SetSMSAttributes
+                  - sns:GetSMSAttributes
+                Resource: '*'
+
+Outputs:
+  OtpTableName:
+    Description: Name of the DynamoDB table for OTP storage
+    Value: !Ref OtpTable
+  
+  SmsTopicArn:
+    Description: ARN of the SNS topic for SMS delivery
+    Value: !Ref SmsTopic
+  
+  OtpLambdaRoleArn:
+    Description: ARN of the IAM role for Lambda to access DynamoDB and SNS
+    Value: !GetAtt OtpLambdaRole.Arn

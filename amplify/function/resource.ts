@@ -1,17 +1,26 @@
 import { defineFunction } from '@aws-amplify/backend';
 
-// Simplified approach - we'll create the Pinpoint project manually
-// and provide the Project ID as an environment variable
+// Define the OTP verification function
+export const otpVerificationFunction = defineFunction({
+  entry: '../../lambda/otp-verification/index.js',
+  environment: {
+    // SNS and DynamoDB configuration
+    SNS_TOPIC_ARN: process.env.SNS_TOPIC_ARN || '',
+    OTP_TABLE_NAME: process.env.OTP_TABLE_NAME || 'OtpVerification',
+    OTP_EXPIRY_MINUTES: '5',
+    MAX_OTP_ATTEMPTS: '3',
+    RATE_LIMIT_HOURS: '1',
+    MAX_OTP_REQUESTS: '3'
+  }
+});
+
+// Keep the old function for backward compatibility
 export const sendSmsFunction = defineFunction({
   entry: '../../lambda/send-sms/index.js',
   environment: {
-    // Pinpoint project ID provided by the user
+    // Pinpoint project ID - this is already set up
     PINPOINT_PROJECT_ID: '2610e382c60e4cf4bc148b61221f3116'
   }
 });
 
-// Note: After deployment, we'll need to:
-// 1. Create a Pinpoint project manually in the AWS console
-// 2. Enable the SMS channel for the project
-// 3. Update the Lambda function's environment variable with the Pinpoint Project ID
-// 4. Add IAM permissions for the Lambda function to use Pinpoint
+// Note: The IAM permissions for SNS and DynamoDB are defined in the CloudFormation template
